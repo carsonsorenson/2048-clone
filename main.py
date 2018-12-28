@@ -1,4 +1,5 @@
 import pygame
+import random
 
 pygame.init()
 display_width = 450
@@ -54,107 +55,150 @@ class Board:
         game_display.blit(text, text_rect)
 
 
+class Tile:
+    def __init__(self, row, col, speed, value):
+        self.row = row
+        self.col = col
+        self.speed = speed
+        self.value = value
+
+class Tiles:
+    def __init__(self):
+        self.tile_scale = 100
+        self.rows = 4
+        self.tiles = [[Tile(row * self.tile_scale, col * self.tile_scale, 0, 0) for col in range(self.rows)] for row in range(self.rows)]
+        self.random_tile()
+        self.transposed = False
+        self.moving = False
+
+    def transpose(self):
+        self.transposed = True
+        tmp = []
+        for j in range(len(self.tiles)):
+            tmp.append([])
+            for i in range(len(self.tiles[0])):
+                new_tile = Tile(self.tiles[i][j].col, self.tiles[i][j].row, self.tiles[i][j].speed, self.tiles[i][j].value)
+                tmp[j].append(new_tile)
+        self.tiles = tmp
+
+
+    def move(self, move_speed):
+        for i in range(self.rows):
+            # Delete all the zeroes in the row
+            self.tiles[i] = [tile for tile in self.tiles[i] if tile.value != 0]
+            # Push new zero tiles to the end if moving left, push to front if moving to the right
+            if move_speed < 0:
+                for j in range(self.rows - len(self.tiles[i])):
+                    new_tile = Tile(i * self.tile_scale, len(self.tiles[i]) * self.tile_scale, 0, 0)
+                    self.tiles[i].append(new_tile)
+            else:
+                for j in range(self.rows - len(self.tiles[i])):
+                    new_tile = Tile(i * self.tile_scale, (self.rows - 1 - len(self.tiles[i])) * self.tile_scale, 0, 0)
+                    self.tiles[i].insert(0, new_tile)
+            # Assign a speed the tile will move at
+            for j in range(self.rows):
+                self.tiles[i][j].speed = (j - (self.tiles[i][j].col / self.tile_scale)) * abs(move_speed)
+        self.print_tiles()
+
+    def update(self):
+        self.moving = False
+        for i in range(self.rows):
+            for j in range(self.rows):
+                tile = self.tiles[i][j]
+                col = tile.col / self.tile_scale
+                row = tile.row / self.tile_scale
+                if not self.transposed:
+                    if col < j and tile.speed > 0:
+                        self.moving = True
+                        tile.col += tile.speed
+                    elif col > j and tile.speed < 0:
+                        self.moving = True
+                        tile.col += tile.speed
+                    else:
+                        tile.col = j * self.tile_scale
+                        tile.speed = 0
+                else:
+                    if row < i and tile.speed > 0:
+                        self.moving = True
+                        tile.row += tile.speed
+                    elif row > i and tile.speed < 0:
+                        self.moving = True
+                        tile.row += tile.speed
+                    else:
+                        tile.row = i * self.tile_scale
+                        tile.speed = 0
+
+
+    def random_tile(self):
+        #random_pool = [(3, 2), (2, 1), (2, 3)]
+        #for i in range(self.rows):
+        #    for j in range(self.rows):
+        #        if self.tiles[i][j].value == 0:
+        #            random_pool.append((i, j))
+        #choice = random.choice(random_pool)
+        #self.tiles[choice[0]][choice[1]].value = 2
+        self.tiles[0][2].value = 2
+        self.tiles[1][1].value = 4
+        self.tiles[2][0].value = 8
+        self.tiles[2][3].value = 8
+        self.tiles[3][2].value = 4
+        self.tiles[3][3].value = 4
+
+    def print_tiles(self):
+        for i in self.tiles:
+            for j in i:
+                print('[', j.row, j.col, j.speed, j.value, ']', end=' ')
+            print()
+
+
 class Game:
     def __init__(self):
-        self.rotate = False
-        self.flip = False
-        self.speed = -10
-        self.rows = 4
         self.fps = 60
-        self.done = False
         self.clock = pygame.time.Clock()
-        self.overlay = Board()
-        self.dir = (0, 0)
-        self.tile_factor = 100
-        self.board = [[[j * 100, i * 100, 0, 0] for i in range(self.rows)] for j in range(self.rows)]
-        self.board[3][3][3] = 16
-        self.board[3][1][3] = 8
-        self.board[1][2][3] = 4
+        self.board = Board()
+        self.game_board = Tiles()
+        self.rows = 4
+        self.speed = 1
 
-    def rotate_matrix(self):
+    def draw(self):
+        game_display.fill(Colors.white)
+        self.board.draw_box()
+        self.board.draw_lines()
+        self.game_board.update()
         for i in range(self.rows):
-            self.board[i][:] = self.board[i][::-1]
-
-    def rows_to_cols(self):
-        tmp = []
-        for i in range(self.rows):
-            tmp.append([row[i] for row in self.board])
-        self.board = tmp
-
+            for j in range(self.rows):
+                tile = self.game_board.tiles[i][j]
+                if tile.value != 0:
+                    self.board.draw_tile(tile.row / self.game_board.tile_scale, tile.col / self.game_board.tile_scale, tile.value)
 
     def game_loop(self):
-        while not self.done:
+        while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    self.done = True
                     self.terminate()
                 elif event.type == pygame.KEYDOWN:
-                    if self.rotate:
-                        self.rotate_matrix()
-                        self.rotate = False
-                    if self.flip:
-                        self.rows_to_cols()
-                        self.flip = False
-
-                    if event.key == pygame.K_RIGHT:
-                        self.rotate_matrix()
-                        self.rotate = True
-                        self.dir = (1, 0)
-                    elif event.key == pygame.K_LEFT:
-                        self.dir = (-1, 0)
-                    elif event.key == pygame.K_UP:
-                        self.rows_to_cols()
-                        self.dir = (0, -1)
-                        self.flip = True
+                    self.handle_keypress(event)
             self.draw()
             pygame.display.update()
             self.clock.tick(self.fps)
 
+    def handle_keypress(self, event):
+        if not self.game_board.moving:
+            if event.key == pygame.K_LEFT:
+                self.game_board.move(-self.speed)
+                self.game_board.transposed = False
+            elif event.key == pygame.K_RIGHT:
+                self.game_board.move(self.speed)
+                self.game_board.transposed = False
+            elif event.key == pygame.K_UP:
+                self.game_board.transpose()
+                self.game_board.move(-self.speed)
+                self.game_board.transpose()
+            elif event.key == pygame.K_DOWN:
+                self.game_board.transpose()
+                self.game_board.move(self.speed)
+                self.game_board.transpose()
 
-    def update(self):
-        for i in range(self.rows):
-            for j in range(self.rows):
-                self.board[i][j][0] = i * 100
-                self.board[i][j][1] = j * 100
-        for i in range(self.rows):
-            self.board[i][:] = [value for value in self.board[i] if value[3] != 0]
-            for j in range(len(self.board[i])):
-                if j != self.board[i][j][1] / self.tile_factor:
-                    self.board[i][j][2] = self.speed * ((self.board[i][j][1] / self.tile_factor) - j)
-            for j in range(self.rows - len(self.board[i])):
-                self.board[i].append([i * 100, len(self.board[i]) * 100, 0, 0])
-
-    def move(self):
-        for i in range(self.rows):
-            for j in range(self.rows):
-                if self.board[i][j][1] / self.tile_factor > j:
-                    self.board[i][j][1] += self.board[i][j][2]
-                elif self.board[i][j][1] / self.tile_factor < j:
-                    self.board[i][j][1] = j * self.tile_factor
-                    self.board[i][j][2] = 0
-
-
-
-    def draw(self):
-        game_display.fill(Colors.white)
-        self.overlay.draw_box()
-        self.overlay.draw_lines()
-        self.move()
-        if self.dir[0] != 0 or self.dir[1] != 0:
-            self.update()
-            self.dir = (0, 0)
-        for i in range(self.rows):
-            for j in range(self.rows):
-                if self.board[i][j][3] != 0:
-                    x = self.board[i][j][0] / 100
-                    y = self.board[i][j][1] / 100
-                    value = self.board[i][j][3]
-                    if self.rotate:
-                        self.overlay.draw_tile(x, self.rows - 1 - y, value)
-                    elif self.flip:
-                        self.overlay.draw_tile(y, x, value)
-                    else:
-                        self.overlay.draw_tile(x, y, value)
 
     def terminate(self):
         pygame.quit()
