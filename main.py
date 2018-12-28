@@ -61,6 +61,7 @@ class Tile:
         self.col = col
         self.speed = speed
         self.value = value
+        self.shift = 0
 
 class Tiles:
     def __init__(self):
@@ -70,6 +71,8 @@ class Tiles:
         self.random_tile()
         self.transposed = False
         self.moving = False
+        self.speed = 0
+        self.tile_placed = False
 
     def transpose(self):
         self.transposed = True
@@ -81,8 +84,25 @@ class Tiles:
                 tmp[j].append(new_tile)
         self.tiles = tmp
 
+    def check_merge(self, row, move_speed):
+        if move_speed < 0:
+            for i in range(1, len(row)):
+                if row[i - 1].value == row[i].value and row[i - 1].value != 0:
+                    row[i].shift = -(i + row[i - 1].shift)
+                else:
+                    row[i].shift = row[i-1].shift
+                row[i].speed += (row[i].shift * abs(move_speed))
+        else:
+            for i in range(len(row) - 2, -1, -1):
+                if row[i + 1].value == row[i].value and row[i + 1].value != 0:
+                    row[i].shift = (len(row) - 1 - i) - row[i + 1].shift
+                else:
+                    row[i].shift = row[i+1].shift
+                row[i].speed += (row[i].shift * abs(move_speed))
+
 
     def move(self, move_speed):
+        self.speed = move_speed
         for i in range(self.rows):
             # Delete all the zeroes in the row
             self.tiles[i] = [tile for tile in self.tiles[i] if tile.value != 0]
@@ -98,7 +118,29 @@ class Tiles:
             # Assign a speed the tile will move at
             for j in range(self.rows):
                 self.tiles[i][j].speed = (j - (self.tiles[i][j].col / self.tile_scale)) * abs(move_speed)
+            self.check_merge(self.tiles[i], move_speed)
         self.print_tiles()
+
+    def tile_reset(self):
+        if self.speed > 0:
+            for i in range(self.rows - 1, -1, -1):
+                for j in range(self.rows -1, -1, -1):
+                    tile = self.tiles[i][j]
+                    if tile.shift != 0:
+                        new_tile = self.tiles[i][j + tile.shift]
+                        new_tile.value = tile.value * 2
+                        tile.value = 0
+                        tile.shift = 0
+        else:
+            for i in range(self.rows):
+                for j in range(self.rows):
+                    tile = self.tiles[i][j]
+                    if tile.shift != 0:
+                        new_tile = self.tiles[i][j + tile.shift]
+                        new_tile.value = tile.value * 2
+                        tile.value = 0
+                        tile.shift = 0
+
 
     def update(self):
         self.moving = False
@@ -107,11 +149,14 @@ class Tiles:
                 tile = self.tiles[i][j]
                 col = tile.col / self.tile_scale
                 row = tile.row / self.tile_scale
+                target_col = j
+                if tile.shift != 0:
+                    target_col += tile.shift
                 if not self.transposed:
-                    if col < j and tile.speed > 0:
+                    if col < target_col and tile.speed > 0:
                         self.moving = True
                         tile.col += tile.speed
-                    elif col > j and tile.speed < 0:
+                    elif col > target_col and tile.speed < 0:
                         self.moving = True
                         tile.col += tile.speed
                     else:
@@ -127,27 +172,26 @@ class Tiles:
                     else:
                         tile.row = i * self.tile_scale
                         tile.speed = 0
+        if not self.moving:
+            if not self.tile_placed:
+                self.random_tile()
+            self.tile_reset()
 
 
     def random_tile(self):
-        #random_pool = [(3, 2), (2, 1), (2, 3)]
-        #for i in range(self.rows):
-        #    for j in range(self.rows):
-        #        if self.tiles[i][j].value == 0:
-        #            random_pool.append((i, j))
-        #choice = random.choice(random_pool)
-        #self.tiles[choice[0]][choice[1]].value = 2
-        self.tiles[0][2].value = 2
-        self.tiles[1][1].value = 4
-        self.tiles[2][0].value = 8
-        self.tiles[2][3].value = 8
-        self.tiles[3][2].value = 4
-        self.tiles[3][3].value = 4
+        self.tile_placed = True
+        random_pool = []
+        for i in range(self.rows):
+            for j in range(self.rows):
+                if self.tiles[i][j].value == 0:
+                    random_pool.append((i, j))
+        choice = random.choice(random_pool)
+        self.tiles[choice[0]][choice[1]].value = 2
 
     def print_tiles(self):
         for i in self.tiles:
             for j in i:
-                print('[', j.row, j.col, j.speed, j.value, ']', end=' ')
+                print('[', j.row, j.col, j.speed, j.value, j.shift, ']', end=' ')
             print()
 
 
@@ -184,6 +228,7 @@ class Game:
 
     def handle_keypress(self, event):
         if not self.game_board.moving:
+            self.game_board.tile_placed = False
             if event.key == pygame.K_LEFT:
                 self.game_board.move(-self.speed)
                 self.game_board.transposed = False
