@@ -1,11 +1,12 @@
 import pygame
 import random
+from time import sleep
 
 pygame.init()
 display_width = 500
 display_height = 650
 game_display = pygame.display.set_mode((display_width, display_height))
-rows = 4
+rows = 2
 
 class Colors:
     box_color = (205, 193, 181)
@@ -28,6 +29,30 @@ class Colors:
         'inf' : (60,  58,  50 ),
     }
 
+class Menu:
+    def __init__(self):
+        self.accessory_font = pygame.font.SysFont('calibri', 20)
+        self.accessory_height = 40
+        self.accessory_pos = 110
+        self.left = 35
+
+        self.score_box = pygame.Rect(self.left, self.accessory_pos, 120, self.accessory_height)
+        self.restart_box = pygame.Rect(self.left + self.score_box.width + 20, self.accessory_pos, 85, self.accessory_height)
+
+    def draw(self, score):
+        # score
+        pygame.draw.rect(game_display, Colors.box_color, self.score_box)
+        score_text = self.accessory_font.render('Score: ' + str(score), True, Colors.black)
+        score_rect = score_text.get_rect()
+        score_rect.center = self.score_box.center
+        game_display.blit(score_text, score_rect)
+
+        pygame.draw.rect(game_display, Colors.box_color, self.restart_box)
+        restart_text = self.accessory_font.render('Restart', True, Colors.black)
+        restart_rect = restart_text.get_rect()
+        restart_rect.center = self.restart_box.center
+        game_display.blit(restart_text, restart_rect)
+
 
 class Board:
     def __init__(self):
@@ -39,7 +64,8 @@ class Board:
         self.left = self.padding
         self.right = display_width - self.padding
         self.tile_dim = self.box_dim / rows
-        self.font = pygame.font.SysFont('Arial', 25)
+        self.font = pygame.font.SysFont('calibri', 35)
+        self.game_over_font = pygame.font.SysFont('calibri', 50)
 
     def draw_box(self):
         overlay_rect = pygame.Rect(self.left, self.top, self.box_dim, self.box_dim)
@@ -72,6 +98,20 @@ class Board:
         text_rect.center = tile.center
         game_display.blit(text, text_rect)
 
+    def draw_game_over(self):
+        game_screen_left = self.left - self.line_thickness / 2
+        game_screen_top = self.top - self.line_thickness / 2
+        game_screen_dim = self.box_dim + self.line_thickness + 1
+        background = pygame.Surface((game_screen_dim, game_screen_dim))
+        background.set_alpha(185)
+        background.fill(Colors.white)
+        game_over_text = self.game_over_font.render('Game Over', True, Colors.black)
+        game_over_rect = game_over_text.get_rect()
+        game_over_rect.center = pygame.Rect(game_screen_left, game_screen_top, game_screen_dim, game_screen_dim).center
+        game_display.blit(background, (game_screen_left, game_screen_top))
+        game_display.blit(game_over_text, game_over_rect)
+
+
 class Tile:
     def __init__(self, row, col, shift, value):
         self.row = row
@@ -92,6 +132,7 @@ class Tiles:
         self.updated = True
         self.moved = False
         self.score = 0
+        self.game_over = False
         # These variables are used to determine merging of tiles
         self.current_tile = None
         self.shift_amount = 0
@@ -167,7 +208,7 @@ class Tiles:
         self.tiles = new_matrix
         if self.moved:
             self.random_tile()
-        print(self.score)
+        #print(self.score)
 
     def update(self, tile):
         if tile.shift != 0:
@@ -175,6 +216,18 @@ class Tiles:
             tile.shift -= tile.speed
             return True
         return False
+
+    def check_game_over(self):
+        for i in range(rows):
+            for j in range(rows):
+                if i == rows - 1 and j == rows - 1:
+                    return True
+                if i != rows - 1:
+                    if self.tiles[i][j].value == self.tiles[i + 1][j].value:
+                        return False
+                if j != rows - 1:
+                    if self.tiles[i][j].value == self.tiles[i][j + 1].value:
+                        return False
 
 
     def random_tile(self):
@@ -190,12 +243,13 @@ class Tiles:
         else:
             self.tiles[choice[0]][choice[1]].value = 4
         if len(random_pool) == 1:
-            print('check for game over')
+            self.game_over = self.check_game_over()
 
     def print_tiles(self):
         for i in self.tiles:
             for j in i:
-                print('[', j.row, j.col, j.shift, j.value, j.speed, ']', end=' ')
+                print(j.value, end= ' ')
+                #print('[', j.row, j.col, j.shift, j.value, j.speed, ']', end=' ')
             print()
 
 
@@ -205,13 +259,16 @@ class Game:
         self.clock = pygame.time.Clock()
         self.board = Board()
         self.game_board = Tiles()
+        self.menu = Menu()
         self.speed = 1
         self.moving = False
+        self.done = False
 
     def draw(self):
         game_display.fill(Colors.white)
         self.board.draw_box()
         self.board.draw_lines()
+        self.menu.draw(self.game_board.score)
         self.moving = False
         for i in range(rows):
             for j in range(rows):
@@ -226,14 +283,20 @@ class Game:
         if not self.moving and not self.game_board.updated:
             self.game_board.update_matrix()
             self.game_board.updated = True
+        if self.game_board.game_over:
+            self.board.draw_game_over()
 
     def game_loop(self):
-        while True:
+        while not self.done:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.terminate()
                 elif event.type == pygame.KEYDOWN:
                     self.handle_keypress(event)
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    pos = pygame.mouse.get_pos()
+                    if self.menu.restart_box.collidepoint(pos):
+                        self.done = True
             self.draw()
             pygame.display.update()
             self.clock.tick(self.fps)
@@ -255,8 +318,9 @@ class Game:
         quit()
 
 def main():
-    game = Game()
-    game.game_loop()
+    while True:
+        game = Game()
+        game.game_loop()
 
 if __name__ == '__main__':
     main()
