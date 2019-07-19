@@ -18,7 +18,6 @@ class Tiles:
         self.init_game()
         self.game_over = False
 
-
     def init_game(self):
         tmp = []
         for i in range(Settings.rows):
@@ -28,7 +27,6 @@ class Tiles:
             choice = random.choice(tmp)
             self.place_random_tile([choice])
             tmp.remove(choice)
-
 
     def draw(self):
         self.board.draw()
@@ -51,7 +49,6 @@ class Tiles:
 
     def init_tiles(self):
         return [[Tile(row * Settings.tile_scale, col * Settings.tile_scale, 0) for col in range(Settings.rows)] for row in range(Settings.rows)]
-
 
     def transpose(self):
         self.transposed = not self.transposed
@@ -141,6 +138,6 @@ class Tiles:
     def print_tiles(self):
         for i in self.tiles:
             for j in i:
-                print(j.value, end= ' ')
+                print(j.value, end=' ')
             print()
         print()

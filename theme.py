@@ -1,4 +1,4 @@
-class Light_theme:
+class Light:
     box_color = (205, 193, 181)
     line_color = (187, 173, 160)
     background = (255, 255, 255)

@@ -1,5 +1,6 @@
 import pygame
-from lightTheme import Light_theme
+import theme
+
 
 class Settings:
     #entire window
@@ -7,7 +8,7 @@ class Settings:
     display_height = 650
     game_display = pygame.display.set_mode((display_width, display_height))
     rows = 4
-    theme = Light_theme()
+    theme = theme.Light()
 
     #game window
     game_dimension = 420
